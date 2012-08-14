@@ -45,8 +45,7 @@ class GitIt
     def new_issue
         repo = Grit::Repo.new('.')
         id = max_id.next
-        repo.git.checkout({}, 'master')
-        repo.git.checkout({b: true}, id_to_branch(id))
+        repo.git.checkout({b: true}, id_to_branch(id), 'master')
         return id
     end
 
