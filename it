@@ -63,7 +63,7 @@ class GitIt
 
     def save_issue
         repo = Grit::Repo.new('.')
-        repo.add('issue')
+        repo.add(@issue_file)
         repo.commit_index('Updated issue.')
         repo.git.checkout({}, 'master')
     end
