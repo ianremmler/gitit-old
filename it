@@ -1,0 +1,142 @@
+#!/usr/bin/env ruby
+
+require 'grit'
+require 'yaml'
+
+class GitIt
+    attr_reader :issue_file
+
+    def initialize
+        @branch_path = 'issue/'
+        @issue_file = 'issue'
+    end
+
+    def num_to_id(n)
+        return '%04d' % n
+    end
+
+    def id_to_num(id)
+        return id.to_i
+    end
+
+    def id_to_branch(id)
+        return @branch_path + id
+    end
+
+    def issue_ids
+        repo = Grit::Repo.new('.')
+        list = repo.branches.select {|b| b.name.match(@branch_path)}
+        return list.map {|b| b.name.sub(@branch_path, '')}.sort
+    end
+
+    def max_id
+        ids = issue_ids
+        return ids.empty? ? num_to_id(0) : ids.max
+    end
+
+    def init
+        repo = Grit::Repo.init('.')
+        default_issue = DATA.read
+        File.open(@issue_file, 'w') {|f| f.write(default_issue)}
+        repo.add(@issue_file)
+        repo.commit_index('Initialized issue tracker.')
+    end
+
+    def new_issue
+        repo = Grit::Repo.new('.')
+        id = max_id.next
+        repo.git.checkout({}, 'master')
+        repo.git.checkout({b: true}, id_to_branch(id))
+        return id
+    end
+
+    def open_issue(id)
+        repo = Grit::Repo.new('.')
+        repo.git.checkout({}, id_to_branch(id))
+    end
+
+    def cancel
+        repo = Grit::Repo.new('.')
+        repo.git.reset({:hard => true}, 'HEAD')
+        repo.git.checkout({}, 'master')
+    end
+
+    def save_issue
+        repo = Grit::Repo.new('.')
+        repo.add('issue')
+        repo.commit_index('Updated issue.')
+        repo.git.checkout({}, 'master')
+    end
+
+    def field(id, key)
+        yml = YAML.load(content(id, @issue_file))
+        return yml.select {|item| item.first.first == key}.first[key] || ''
+    end
+
+    def find(key, value)
+        matches = issue_ids.select do |id|
+            yml = YAML.load(content(id, @issue_file))
+            !(yml.select {|item| item.first == [key, value]}.empty?)
+        end
+        return matches.map {|id| "#{id}: " + field(id, 'summary')}
+    end
+
+    def list
+        return issue_ids.map {|id| "#{id}: " + field(id, 'summary')}
+    end
+
+    def content(id, file)
+        repo = Grit::Repo.new('.')
+        blob = repo.commits(id_to_branch(id)).first.tree / file
+        return blob.data
+    end
+
+    def blame(id, file)
+        repo = Grit::Repo.new('.')
+        lines = Grit::Blame.new(repo, file, id_to_branch(id)).lines
+        output = lines.map do |l|
+            "#{l.commit.author}: #{l.commit.date}: %04d: #{l.line}\n" % l.lineno
+        end
+        return output.join
+    end
+end
+
+it = GitIt.new
+
+case ARGV[0]
+when 'init'
+    it.init
+when 'new'
+    id = it.new_issue
+    puts("id: #{id}")
+when 'list'
+    puts(it.list)
+when 'show'
+    id = it.num_to_id(ARGV[1])
+    puts("id: #{id}")
+    puts(it.content(id, it.issue_file))
+when 'open'
+    id = it.num_to_id(ARGV[1])
+    puts "id: #{id}"
+    it.open_issue(id)
+when 'save'
+    it.save_issue
+when 'cancel'
+    it.cancel
+when 'find'
+    puts(it.find(ARGV[1], ARGV[2]))
+when 'blame'
+    id = it.num_to_id(ARGV[1])
+    puts("id: #{id}")
+    puts(it.blame(id, it.issue_file))
+end
+
+__END__
+---
+- summary:
+- type:
+- status:
+- assigned:
+- priority:
+- description:
+...
