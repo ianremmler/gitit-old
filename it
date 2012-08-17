@@ -72,16 +72,22 @@ class GitIt
         return yml.select {|item| item.first.first == key}.first[key] || ''
     end
 
+    def summarize(id)
+        stat = field(id, 'status')[0] || '?'
+        smry = field(id, 'summary')
+        return "#{id}: #{stat}: #{smry}"
+    end
+
     def find(key, value)
         matches = issue_ids.select do |id|
             yml = YAML.load(content(id, @issue_file))
             !(yml.select {|item| item.first == [key, value]}.empty?)
         end
-        return matches.map {|id| "#{id}: " + field(id, 'summary')}
+        return matches.map {|id| summarize(id)}
     end
 
     def list
-        return issue_ids.map {|id| "#{id}: " + field(id, 'summary')}
+        return issue_ids.map {|id| summarize(id)}
     end
 
     def content(id, file)
