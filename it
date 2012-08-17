@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 
+require 'rubygems'
 require 'grit'
 require 'yaml'
 
@@ -54,6 +55,20 @@ class GitIt
         repo.git.checkout({}, id_to_branch(id))
     end
 
+    def edit_issue(file='issue')
+      # TODO:  File.exist?('/usr/bin/editor')
+      editor=ENV['GIT_EDITOR'] || ENV['EDITOR'] || '/usr/bin/editor'
+      exec editor, file
+    end
+    alias :edit edit_issue
+
+    def attach_file(file)
+      return unless File.exist?(file)
+      repo = Grit::Repo.new('.')
+      repo.add(file)
+      # TODO: maybe save after add?
+    end
+
     def cancel
         repo = Grit::Repo.new('.')
         repo.git.reset({:hard => true}, 'HEAD')
@@ -97,6 +112,7 @@ class GitIt
     end
 
     def blame(id, file)
+        return if id.nil?
         repo = Grit::Repo.new('.')
         lines = Grit::Blame.new(repo, file, id_to_branch(id)).lines
         output = lines.map do |l|
@@ -120,6 +136,23 @@ when 'show'
     id = it.num_to_id(ARGV[1])
     puts("id: #{id}")
     puts(it.content(id, it.issue_file))
+when 'add'
+  puts 'try attach' ; exit 0
+when 'attach'
+    repo = Grit::Repo.new('.')
+    if repo.head.name == 'master'
+      puts 'Open an issue before attaching a file'
+      exit 1
+    elsif ARGV[1].nil?
+      puts "Usage: $0 attach <file>"
+      exit 1
+    end
+    it.attach_file(ARGV[1])
+when 'edit'
+    id = it.num_to_id(ARGV[1])
+    puts "id: #{id}"
+    it.open_issue(id)
+    it.edit it.issue_file
 when 'open'
     id = it.num_to_id(ARGV[1])
     puts "id: #{id}"
@@ -131,6 +164,7 @@ when 'cancel'
 when 'find'
     puts(it.find(ARGV[1], ARGV[2]))
 when 'blame'
+    exit 1 if ARGV[1].nil?
     id = it.num_to_id(ARGV[1])
     puts("id: #{id}")
     puts(it.blame(id, it.issue_file))
